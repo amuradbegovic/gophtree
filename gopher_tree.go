@@ -4,19 +4,24 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
 type Config struct {
-	dirsOnly bool
-	fullPath bool
-	url      bool
-	html     bool
-	gopher   bool
-	realTime bool
-	maxDepth int
+	dirsOnly       bool
+	fullPath       bool
+	url            bool
+	html           bool
+	gopher         bool
+	realTime       bool
+	maxDepth       int
+	disableNotices bool
+	typeFilter     []byte
+	aliases        []string
 }
 
+// this should be rewritten so it can be called with a link to a file as a parameter, it would also eliminate some code in main.go
 func gopherTree(cfg Config, rootInfo MenuItem, indentation string, filter *[]string, depth int) (string, error) {
 	response, err := getGopher(rootInfo)
 	if err != nil {
@@ -24,7 +29,7 @@ func gopherTree(cfg Config, rootInfo MenuItem, indentation string, filter *[]str
 	}
 
 	menu := responseToMenu(response)
-	menu = cleanupMenu(menu, rootInfo)
+	menu = cleanupMenu(menu, rootInfo, cfg)
 
 	*filter = append(*filter, rootInfo.Selector)
 
@@ -42,13 +47,10 @@ func gopherTree(cfg Config, rootInfo MenuItem, indentation string, filter *[]str
 			pipe = "└── "
 		}
 
-		//tree += indentation + pipe + path.Base(item.Selector)
-
 		branch += indentation + pipe
 		if cfg.html {
 			branch += fmt.Sprintf("<a href=\"%s\">", item.URL())
-		}
-		if cfg.url {
+		} else if cfg.url || (item.Host != rootInfo.Host) {
 			branch += item.URL()
 		} else {
 			if cfg.fullPath {
@@ -61,14 +63,20 @@ func gopherTree(cfg Config, rootInfo MenuItem, indentation string, filter *[]str
 			branch += "</a>"
 		}
 
-		if contains(*filter, item.Selector) {
-			branch += " (already indexed)"
+		if slices.Contains(*filter, item.Selector) {
+			if !cfg.disableNotices {
+				branch += " (already indexed)"
+			}
 			if cfg.html {
 				branch += "<br />"
 			}
 			branch += "\n"
 
 			continue
+		}
+
+		if !cfg.disableNotices && item.Host != rootInfo.Host {
+			branch += " (foreign host)"
 		}
 
 		if cfg.html {
@@ -91,11 +99,10 @@ func gopherTree(cfg Config, rootInfo MenuItem, indentation string, filter *[]str
 		*filter = append(*filter, item.Selector)
 
 		if item.Type == '1' {
-			if cfg.maxDepth != 0 {
-				if depth >= cfg.maxDepth {
-					continue
-				}
+			if cfg.maxDepth > 0 && depth >= cfg.maxDepth {
+				continue
 			}
+
 			addedInd := "│   "
 			if i == len(menu)-1 {
 				addedInd = "    "
@@ -114,27 +121,14 @@ func gopherTree(cfg Config, rootInfo MenuItem, indentation string, filter *[]str
 	return tree, nil
 }
 
-/*func getDepth(indentation string) int { // ugly hack tbh
-	return len(indentation) / 4
-}*/
-
-func contains(slice []string, element string) bool {
-	for _, el := range slice {
-		if el == element {
-			return true
+func cleanupMenu(originalMenu []MenuItem, rootInfo MenuItem, cfg Config) (newMenu []MenuItem) {
+	for _, item := range originalMenu {
+		if item.Selector != "" && !slices.Contains(cfg.typeFilter, item.Type) && strings.HasSuffix(item.Host, rootInfo.Host) {
+			newMenu = append(newMenu, item)
 		}
 	}
-	return false
-}
 
-func cleanupMenu(original_menu []MenuItem, rootInfo MenuItem) (new_menu []MenuItem) {
-	for _, item := range original_menu {
-		if item.Selector != "" && item.Selector != "Err" && item.Type != 'h' && strings.HasSuffix(item.Host, rootInfo.Host) {
-			//fmt.Println(item)
-			new_menu = append(new_menu, item)
-		}
-	}
-	return new_menu
+	return newMenu
 }
 
 func MakePath(menuPath string, linkPath string) string {

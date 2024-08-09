@@ -29,7 +29,6 @@ func (item MenuItem) URL() string {
 	if item.Selector != "/" { // ugly hack
 		url += item.Selector
 	}
-
 	return url
 }
 
@@ -91,13 +90,10 @@ func URLToMenuItem(url string) (MenuItem, error) {
 		port = 70
 	}
 
-	// if the URL contains only the server address, it is probably a link to the root menu
-	//itemType = '1'
+	itemType = '1' // default itemtype for URLs without a selector is directory
 
-	if len(fields) == 2 {
-		if len(fields[1]) != 1 {
-			return MenuItem{}, errInvalid
-		} else {
+	if len(fields) >= 2 {
+		if len(fields[1]) == 1 {
 			itemType = fields[1][0]
 		}
 	}
@@ -164,7 +160,6 @@ func responseToMenu(response string) []MenuItem {
 	for scanner.Scan() {
 		menu = append(menu, lineToMenuItem(scanner.Text()))
 	}
-	//fmt.Println(menu)
 
 	return menu
 }

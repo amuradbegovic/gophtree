@@ -19,6 +19,8 @@ type Config struct {
 	disableNotices bool
 	typeFilter     []byte
 	aliases        []string
+	foreign        bool
+	printType      bool
 }
 
 // this should be rewritten so it can be called with a link to a file as a parameter, it would also eliminate some code in main.go
@@ -48,9 +50,12 @@ func gopherTree(cfg Config, rootInfo MenuItem, indentation string, filter *[]str
 		}
 
 		branch += indentation + pipe
+		if cfg.printType {
+			branch += fmt.Sprintf("[%c]  ", item.Type)
+		}
 		if cfg.html {
 			branch += fmt.Sprintf("<a href=\"%s\">", item.URL())
-		} else if cfg.url || (item.Host != rootInfo.Host) {
+		} else if cfg.url || !slices.Contains(cfg.aliases, item.Host) {
 			branch += item.URL()
 		} else {
 			if cfg.fullPath {
@@ -64,7 +69,7 @@ func gopherTree(cfg Config, rootInfo MenuItem, indentation string, filter *[]str
 		}
 
 		if slices.Contains(*filter, item.Selector) {
-			if !cfg.disableNotices {
+			if cfg.disableNotices {
 				branch += " (already indexed)"
 			}
 			if cfg.html {
@@ -75,8 +80,10 @@ func gopherTree(cfg Config, rootInfo MenuItem, indentation string, filter *[]str
 			continue
 		}
 
-		if !cfg.disableNotices && item.Host != rootInfo.Host {
-			branch += " (foreign host)"
+		if !slices.Contains(cfg.aliases, item.Host) {
+			if !cfg.disableNotices {
+				branch += " (foreign host)"
+			}
 		}
 
 		if cfg.html {
@@ -123,7 +130,7 @@ func gopherTree(cfg Config, rootInfo MenuItem, indentation string, filter *[]str
 
 func cleanupMenu(originalMenu []MenuItem, rootInfo MenuItem, cfg Config) (newMenu []MenuItem) {
 	for _, item := range originalMenu {
-		if item.Selector != "" && !slices.Contains(cfg.typeFilter, item.Type) && strings.HasSuffix(item.Host, rootInfo.Host) {
+		if item.Selector != "" && !slices.Contains(cfg.typeFilter, item.Type) && (slices.Contains(cfg.aliases, item.Host) || cfg.foreign) {
 			newMenu = append(newMenu, item)
 		}
 	}

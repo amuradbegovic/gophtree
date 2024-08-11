@@ -16,7 +16,7 @@ func main() {
 
 	flag.BoolVar(&cfg.dirsOnly, "d", false, "List directories only")
 	flag.BoolVar(&cfg.fullPath, "f", false, "Prints the full selector for each item")
-	//flag.BoolVar(&cfg.printType, "t", false, "Prints item type for each item")
+	flag.BoolVar(&cfg.printType, "t", false, "Prints item type for each item")
 	flag.BoolVar(&cfg.url, "u", false, "Prints a Gopher URL for each item")
 	flag.BoolVar(&cfg.html, "h", false, "Outputs the tree as an HTML page with links to items")
 	flag.BoolVar(&cfg.gopher, "g", false, "Outputs the tree as a Gopher menu with links to items")
@@ -25,6 +25,7 @@ func main() {
 	flag.BoolVar(&cfg.disableNotices, "N", false, "Hide notices for already indexed and foreign items")
 	flag.StringVar(&ignoredTypesString, "T", "", "Comma-separated list of item types you're willing to ignore")
 	flag.StringVar(&aliasesString, "a", "", "Comma-separated list of target server's alias hostnames")
+	flag.BoolVar(&cfg.foreign, "F", false, "Show links to files and directories on foreign hosts")
 
 	flag.Parse()
 
@@ -47,34 +48,36 @@ func main() {
 		os.Exit(1)
 	}
 
-	for _, argument := range args {
-		rootInfo, err := URLToMenuItem(argument)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
-			continue
-		}
+	argument := args[0]
 
-		title := rootInfo.URL()
-		if cfg.html {
-			title = rootInfo.HTML() + "<br />"
-		} else if cfg.gopher {
-			rootInfo.DisplayName = title
-			title = rootInfo.String()
-		} else {
-			title += "\n"
-		}
-		fmt.Print(title)
-
-		tree, err := gopherTree(cfg, rootInfo, "", &[]string{""}, 1)
-
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
-		} else {
-			fmt.Print(tree)
-		}
+	rootInfo, err := URLToMenuItem(argument)
+	cfg.aliases = append(cfg.aliases, rootInfo.Host)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
 	}
+
+	title := rootInfo.URL()
+	if cfg.html {
+		title = rootInfo.HTML() + "<br />"
+	} else if cfg.gopher {
+		rootInfo.DisplayName = title
+		title = rootInfo.String()
+	} else {
+		title += "\n"
+	}
+	fmt.Print(title)
+
+	tree, err := gopherTree(cfg, rootInfo, "", &[]string{""}, 1)
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+	} else {
+		fmt.Print(tree)
+	}
+
 }
 
 func usage(progname string) {
-	fmt.Fprintf(os.Stderr, "Usage: %s [ option ... ] url1 [ url2 ... ]\n", progname)
+	fmt.Fprintf(os.Stderr, "Usage: %s [ option ... ] URL\n", progname)
 }
